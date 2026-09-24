@@ -1,8 +1,8 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { router } from '@inertiajs/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ExpenseForm } from '@/components/expense-form';
-import { ExpenseServiceError } from '@/services/expense-service';
 import type { Expense } from '@/types/expense';
 
 const customExpense: Expense = {
@@ -17,6 +17,7 @@ const customExpense: Expense = {
 };
 
 afterEach(() => {
+    vi.restoreAllMocks();
     vi.useRealTimers();
 });
 
@@ -25,13 +26,13 @@ describe('ExpenseForm', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-09-24T16:30:00Z'));
 
-        render(<ExpenseForm onSubmit={vi.fn()} onCancel={vi.fn()} />);
+        render(<ExpenseForm onSuccess={vi.fn()} onCancel={vi.fn()} />);
 
         expect(screen.getByLabelText('Expense date')).toHaveAttribute('max', '2026-09-25');
     });
 
     it('contains long notes in a vertically scrollable wrapped textarea', () => {
-        render(<ExpenseForm onSubmit={vi.fn()} onCancel={vi.fn()} />);
+        render(<ExpenseForm onSuccess={vi.fn()} onCancel={vi.fn()} />);
 
         const notes = screen.getByLabelText('Notes (optional)');
 
@@ -40,7 +41,7 @@ describe('ExpenseForm', () => {
     });
 
     it('reveals and requires a custom category when Other is selected', () => {
-        render(<ExpenseForm onSubmit={vi.fn()} onCancel={vi.fn()} />);
+        render(<ExpenseForm onSuccess={vi.fn()} onCancel={vi.fn()} />);
 
         expect(screen.queryByRole('textbox', { name: 'Category name' })).not.toBeInTheDocument();
         fireEvent.change(screen.getByLabelText('Category'), { target: { value: 'Other' } });
@@ -49,7 +50,7 @@ describe('ExpenseForm', () => {
     });
 
     it('restores a stored custom category when editing', () => {
-        render(<ExpenseForm expense={customExpense} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+        render(<ExpenseForm expense={customExpense} onSuccess={vi.fn()} onCancel={vi.fn()} />);
 
         expect(screen.getByLabelText('Title')).toHaveValue('Team lunch');
         expect(screen.getByLabelText('Category')).toHaveValue('Other');
@@ -57,10 +58,10 @@ describe('ExpenseForm', () => {
     });
 
     it('keeps entered values and displays field errors returned by Laravel', async () => {
-        const onSubmit = vi.fn(() => Promise.reject(
-            new ExpenseServiceError('Validation failed.', 422, { title: ['The title field is required.'] }),
-        ));
-        render(<ExpenseForm expense={customExpense} onSubmit={onSubmit} onCancel={vi.fn()} />);
+        vi.spyOn(router, 'put').mockImplementation((_url, _data, options) => {
+            options?.onError?.({ title: 'The title field is required.' });
+        });
+        render(<ExpenseForm expense={customExpense} onSuccess={vi.fn()} onCancel={vi.fn()} />);
 
         fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
@@ -68,16 +69,39 @@ describe('ExpenseForm', () => {
         expect(screen.getByLabelText('Title')).toHaveValue('Team lunch');
     });
 
-    it('disables submission while saving and submits the custom value', async () => {
+    it('disables submission while saving and submits the custom value', () => {
         let finishSave: (() => void) | undefined;
-        const onSubmit = vi.fn(() => new Promise<void>((resolve) => { finishSave = resolve; }));
-        render(<ExpenseForm expense={customExpense} onSubmit={onSubmit} onCancel={vi.fn()} />);
+        const put = vi.spyOn(router, 'put').mockImplementation((_url, _data, options) => {
+            options?.onStart?.({} as never);
+            finishSave = () => options?.onFinish?.({} as never);
+        });
+        render(<ExpenseForm expense={customExpense} onSuccess={vi.fn()} onCancel={vi.fn()} />);
 
         fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
         expect(screen.getByRole('button', { name: 'Saving…' })).toBeDisabled();
-        expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ category: 'Client Meals' }));
-        finishSave?.();
-        await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled());
+        expect(put).toHaveBeenCalledWith(
+            '/expenses/7',
+            expect.objectContaining({ category: 'Client Meals' }),
+            expect.objectContaining({ preserveScroll: true }),
+        );
+        act(() => finishSave?.());
+        expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled();
+    });
+
+    it('submits a new expense through the Inertia store route', () => {
+        const post = vi.spyOn(router, 'post').mockImplementation(() => undefined);
+        render(<ExpenseForm onSuccess={vi.fn()} onCancel={vi.fn()} />);
+
+        fireEvent.change(screen.getByLabelText('Title'), { target: { value: '  Team lunch  ' } });
+        fireEvent.change(screen.getByLabelText('Amount (₱)'), { target: { value: '1250.00' } });
+        fireEvent.change(screen.getByLabelText('Expense date'), { target: { value: '2026-09-24' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Create expense' }));
+
+        expect(post).toHaveBeenCalledWith(
+            '/expenses',
+            expect.objectContaining({ title: 'Team lunch', amount: '1250.00' }),
+            expect.objectContaining({ preserveScroll: true }),
+        );
     });
 });
