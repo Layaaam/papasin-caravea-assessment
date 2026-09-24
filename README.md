@@ -13,7 +13,7 @@ Built for a technical assessment. Full functional/technical requirements are in 
 ## Features
 
 - Full CRUD on expenses (title, amount, category, date, notes)
-- Predefined categories + a free-text "Other" category
+- Predefined categories
 - Search by title, filter by category and date range, sort on any column, server-side pagination
 - Peso (`₱`) formatting with decimal-safe storage (no floating-point money)
 - Loading, empty, no-results, validation, and error states handled end-to-end
@@ -57,7 +57,7 @@ composer run dev
 ### Running tests / quality gates
 
 ```bash
-composer test          # PHPUnit (backend)
+composer test           # PHPUnit (backend)
 vendor/bin/pint         # PHP formatting
 npm run typecheck       # TypeScript
 npm run lint            # ESLint
