@@ -1,58 +1,110 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Expense Tracker
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A single-user expense tracking web app: create, search, filter, sort, and manage expenses through an Inertia-powered React interface backed by Laravel.
 
-## About Laravel
+Built for a technical assessment. Full functional/technical requirements are in [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md); the build log and verification history are in [`docs/IMPLEMENTATION_PHASES.md`](docs/IMPLEMENTATION_PHASES.md).
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Stack
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- **Backend:** Laravel 13, PHP 8.3+, Inertia 3, PHPUnit
+- **Frontend:** React 19, Inertia React 3, TypeScript (strict), Vite, Tailwind CSS 4, shadcn/ui, Vitest + React Testing Library
+- **Database:** PostgreSQL
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Features
 
-## Learning Laravel
+- Full CRUD on expenses (title, amount, category, date, notes)
+- Predefined categories + a free-text "Other" category
+- Search by title, filter by category and date range, sort on any column, server-side pagination
+- Peso (`₱`) formatting with decimal-safe storage (no floating-point money)
+- Loading, empty, no-results, validation, and error states handled end-to-end
+- Allowlisted sort/filter inputs and safely-rendered free text (no injection, no XSS)
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Getting started
 
 ```bash
-composer require laravel/boost --dev
+# 1. Install dependencies
+composer install
+npm install
 
-php artisan boost:install
+# 2. Set up environment
+cp .env.example .env
+php artisan key:generate
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Then open `.env` and fill in your PostgreSQL credentials:
 
-## Contributing
+```dotenv
+DB_CONNECTION=pgsql
+DB_HOST=localhost
+DB_PORT=5432
+DB_DATABASE=caravea-assessment
+DB_USERNAME=credentials here
+DB_PASSWORD=credentials here
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+# 3. Create the database, if not already
+createdb caravea-assessment
 
-## Code of Conduct
+php artisan migrate:fresh --seed       # seeds the database with sample expenses
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+# 4. Run the app
+composer run dev
+```
 
-## Security Vulnerabilities
+`composer run dev` runs the Laravel server, queue listener, and Vite dev server together. The app is served at `http://localhost:8000`.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### Running tests / quality gates
 
-## License
+```bash
+composer test          # PHPUnit (backend)
+vendor/bin/pint         # PHP formatting
+npm run typecheck       # TypeScript
+npm run lint            # ESLint
+npm test -- --run       # Vitest (frontend)
+npm run build           # production build
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+## Why it's built this way
+
+**Route → Controller → Form Request → Eloquent Model → Resource → Inertia.** Routes are thin, `ExpenseController` only coordinates, and validation lives in dedicated Form Requests (`ListExpenseRequest`, `StoreExpenseRequest`, `UpdateExpenseRequest`). The resource keeps expense serialization stable while Inertia supplies the page props and redirect protocol.
+
+**Page/Component → Inertia router/useForm → Laravel web route.** React uses Inertia for list visits and mutations rather than a parallel fetch service. Search, filters, sorting, page size, and pagination are reflected in the URL; Laravel remains authoritative for validation and server-side querying.
+
+**Allowlisted sorting and filtering.** sort, direction, category, and the date-range parameters are validated against an explicit allowlist in `ListExpenseRequest` before they ever reach a query. User input is never interpolated into an ordering or `where` clause directly, and every sort includes `id` as a deterministic tie-breaker so pagination never reshuffles rows with equal values.
+
+**Reusable Eloquent scopes over ad-hoc query building.** Case-insensitive title search, exact category matching, and inclusive date-range filtering are implemented as small, named scopes on `Expense` rather than inline query chains in the controller, so the same filtering logic is testable and reusable outside `index()`.
+
+**`Asia/Manila` as the application timezone.** Non-future-date validation and date formatting are timezone-sensitive, so APP_TIMEZONE is set explicitly instead of left on UTC, which matches the intended Philippine context called out in the requirements.
+
+**Tests assert behavior and database state, not implementation details.** PHPUnit feature tests assert Inertia page props, redirects, flash data, validation errors, and persistence. Vitest/RTL tests exercise page behavior while mocking the Inertia router boundary, so frontend tests never depend on a running server.
+
+## AI usage disclosure
+
+**Tools:** OpenAI Codex, GPT‑5.6 Sol — reasoning effort set to **Medium for planning** (breaking the requirements doc into phases/tasks) and **High for development** (actual implementation).
+
+**How I used it:** Roughly half-and-half, with review throughout rather than accept-and-move-on.
+
+- Me: ran the actual commands namely the Artisan generator batch (`make:model`, `make:request`, `make:resource`, `make:controller`, `make:test`, etc.) and did the initial implementation on top of those generated stubs.
+- AI: took that initial implementation and finished it, continuing the logic I'd started in the controllers, form requests, resources, and migrations and wrote most of the backend (PHPUnit) and frontend (Vitest) test suites.
+- Me: the UI/design layer. I'd originally instructed the AI to build the shadcn/ui components and page layout, but it didn't implement the design the way I wanted, so I built the frontend UI/UX myself by hand and had the AI write the corresponding tests against what I built.
+
+**Roughly how much is AI vs. me:**
+
+- About half. I ran the scaffolding and started the implementation; AI finished and continued that logic plus most of the test coverage. The actual UI implementation is mine.
+
+**One thing the AI got wrong that I had to fix:**
+
+1. **UI implementation.** Given the design instructions, the AI didn't produce a UI that matched what was asked for, so I implemented the components/layout myself instead of iterating further on its output.
+2. **A test bug, not an app bug.** In the original JSON API implementation, two PHPUnit tests asserted a persisted date directly against SQLite's raw stored value (e.g. expected `2026-09-24`, got `2026-09-24 00:00:00`), even though the serialized responses were already correctly formatted as `YYYY-MM-DD`. Fixed by reading the persisted expense back through its Eloquent date cast and asserting with `toDateString()` instead of comparing the raw DB value.
+
+**How I check AI output before shipping:** the full gate suite, each one checking something different:
+
+- `composer test` (PHPUnit) — runs the backend feature tests to verify Inertia responses, redirects, validation, and persistence.
+- `vendor/bin/pint` — enforces consistent PHP formatting.
+- `npm run typecheck` — catches type errors the AI's TypeScript might have introduced.
+- `npm run lint` — catches code-quality and React-hook issues.
+- `npm test -- --run` — runs the frontend test suite.
+- `npm run build` — confirms the production bundle actually compiles.
+
+On top of all of that, I manually review every diff before accepting an AI-written change since the gates catch broken behavior, but not code that runs fine while doing the wrong thing.

@@ -1,6 +1,6 @@
 # Expense Tracker Implementation Phases
 
-This document records the implementation plan, the purpose of each phase, the commands run by the developer, the work completed, and the verification status. The backend JSON API is complete through Phase 2. A React frontend that communicates with that API is planned for later phases; it has not been built. Inertia is not part of the agreed architecture.
+This document records the implementation plan, the purpose of each phase, the commands run by the developer, the work completed, and the verification status. Phases 1 through 6 preserve the original JSON API and fetch-service implementation history. Phase 7 records the completed migration to an Inertia-powered Laravel monolith, which is the current architecture.
 
 The "Current Codebase Assessment" and phase outline in `REQUIREMENTS.md` describe the original assessment baseline. The status and implementation record below describe what has happened since that baseline.
 
@@ -14,6 +14,7 @@ The "Current Codebase Assessment" and phase outline in `REQUIREMENTS.md` describ
 | 4     | Frontend components                     | Finished    |
 | 5     | React-to-Laravel connection             | Finished    |
 | 6     | Cleanup and final verification          | Finished    |
+| 7     | Inertia migration                       | Finished    |
 
 ## Phase 1 — Backend Scaffold and API
 
@@ -202,3 +203,46 @@ Initial checks exposed missing generated-component dependencies and strict TypeS
 | `git diff --check` | PASS | No whitespace errors were reported in the working diff. |
 
 Desktop and narrow-viewport screenshots show the running empty state and responsive filters. The screenshots exposed overly dark card borders; Shadcn's base `border-border` rule was added and the production build passed again. Recent browser logs show Vite connections and no reported JavaScript errors. The developer created a custom-category expense through the running UI, viewed it, edited its notes, and deleted it successfully. The PostgreSQL migration was previously verified in Phase 2; the PHPUnit API suite still runs on SQLite. The final staged Git diff check is part of the developer-run commit handoff.
+
+## Phase 7 — Inertia Migration
+
+**Status: Finished**
+
+This phase supersedes the transport architecture recorded in Phases 1 through 6 without changing the expense domain, database schema, interface, or supported CRUD behavior.
+
+### Architecture changes
+
+- Added the Laravel and React Inertia 3 adapters and registered `HandleInertiaRequests` in the web middleware group.
+- Replaced the manual React mount with `createInertiaApp` and converted the Blade host to the Inertia root components.
+- Replaced the versioned JSON API with named web routes for index, store, update, and delete. Mutations now redirect back and use Inertia flash data; Laravel session errors provide form validation feedback.
+- Moved the controller, Form Requests, and Resource out of the `Api\V1` namespace. The existing validation, serialization, query scopes, filtering, allowlisted sorting, deterministic tie-breaker, and pagination behavior were retained.
+- Removed the separate show endpoint because every paginated expense contains the complete detail representation used by the local details dialog.
+- Replaced the frontend fetch service with Inertia visits and `useForm`. Search remains debounced, list state is represented in the URL, partial reloads refresh only expense/filter props, and categories are retained between list visits.
+- Replaced the API-focused PHPUnit tests and service tests with Inertia response, redirect, flash, session-error, router, form, and query-serialization coverage.
+- Updated `AGENTS.md`, `README.md`, and `docs/REQUIREMENTS.md` to describe Inertia as the active application architecture.
+
+### Current route and prop contract
+
+| Method | URI | Name | Result |
+| --- | --- | --- | --- |
+| `GET` | `/` | `expenses.index` | Renders `expenses/index` with paginated `expenses`, normalized `filters`, and lazy `categories` props. |
+| `POST` | `/expenses` | `expenses.store` | Creates an expense and redirects back with success flash data. |
+| `PUT/PATCH` | `/expenses/{expense}` | `expenses.update` | Updates an expense and redirects back with success flash data. |
+| `DELETE` | `/expenses/{expense}` | `expenses.destroy` | Deletes an expense and redirects back with success flash data. |
+
+Invalid list query strings redirect to the canonical index with session errors before dynamic query construction. If a valid requested page is beyond the last available page, the controller redirects to the nearest valid page. Blank and default filter values are omitted from generated URLs.
+
+### Verification
+
+The migration was developed with focused PHPUnit and Vitest runs. The final project-wide verification completed with these results:
+
+| Command | Result | Purpose |
+| --- | --- | --- |
+| `vendor/bin/pint --dirty --format agent` | PASS | Formatted all changed PHP files. |
+| `composer test` | PASS — 50 tests, 349 assertions | Verified Inertia responses, redirects, validation, serialization, filtering, pagination, and persistence. |
+| `npm run typecheck` | PASS | Verified the strict TypeScript contracts. |
+| `npm run lint` | PASS | Verified the frontend source and tests with ESLint. |
+| `npm test` | PASS — 21 tests in 5 files | Verified form, page, query, detail, and formatter behavior. |
+| `npm run build` | PASS | Built the production Inertia/Vite assets. |
+| `php artisan route:list --except-vendor` | PASS — 4 routes | Confirmed only the four intended expense web routes are registered. |
+| `git diff --check` | PASS | Confirmed the migration diff contains no whitespace errors. |

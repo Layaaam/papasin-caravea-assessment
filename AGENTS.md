@@ -179,21 +179,23 @@ Frontend:
 
 ## Architecture
 
-The frontend must communicate with Laravel exclusively through the API.
+The application uses Inertia to connect Laravel and React. Do not add a parallel JSON API or frontend HTTP service unless explicitly requested.
 
 Backend flow:
 
-Route -> Controller -> Form Request -> Eloquent Model -> API Resource
+Route -> Controller -> Form Request -> Eloquent Model -> Eloquent Resource -> Inertia response/redirect
 
 - Do not put validation logic directly inside controllers.
 - Use Form Requests for validation.
-- Use Eloquent API Resources for API responses, consistently with the Laravel guidance above.
+- Use the Expense Resource to control serialized Inertia props.
+- Return Inertia responses for page visits and redirects with Inertia flash data after mutations.
 
 Frontend flow:
 
-Page/Component -> Service -> Laravel API
+Inertia Page/Component -> Inertia router/useForm -> Laravel web route
 
-- Do not call `fetch` or Axios directly throughout components. Keep API communication in frontend service modules.
+- Do not call `fetch` or Axios for expense CRUD. Use Inertia visits and forms.
+- Keep search, filters, sorting, and pagination in the URL query string.
 
 These project-specific layering decisions take precedence over more general architectural suggestions. Continue to follow the existing directory structure and local conventions unless a change is explicitly approved.
 

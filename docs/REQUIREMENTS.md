@@ -9,6 +9,7 @@ The application will provide a focused, production-quality expense CRUD experien
 - Backend: Laravel 13 and PHP 8.5
 - Database: PostgreSQL
 - Frontend: React, TypeScript, and Vite
+- Application bridge: Inertia 3
 - Styling: Tailwind CSS 4
 - Component library: Shadcn/ui
 - Backend tests: PHPUnit
@@ -16,24 +17,19 @@ The application will provide a focused, production-quality expense CRUD experien
 
 ## 2. Current Codebase Assessment
 
-The repository currently contains a largely unmodified Laravel application skeleton.
+The repository contains the completed expense tracker implemented as a Laravel 13 and Inertia 3 application.
 
-- Laravel 13.33.0, PHP 8.5.8, and PHPUnit 12.5 are installed.
-- PostgreSQL is configured as the local database connection.
-- Vite 8 and Tailwind CSS 4 are installed.
-- Tailwind uses the correct CSS-first configuration with `@import 'tailwindcss'` and `@theme`.
-- React, TypeScript, Shadcn/ui, frontend routing, ESLint, and frontend tests are not yet configured.
-- Only the default web route and Laravel welcome page exist.
-- API routing is not yet enabled.
-- No expense model, migration, factory, seeder, controller, form request, API resource, service, page, component, or domain test exists.
-- The existing PHPUnit tests are Laravel placeholder tests and do not cover the requested application.
-- The default README has not yet been tailored to this project.
+- PostgreSQL is the local database connection, with SQLite used by the automated backend suite.
+- React 19, strict TypeScript, Vite 8, Tailwind CSS 4, Shadcn/ui, ESLint, Vitest, and React Testing Library are configured.
+- Laravel web routes render the expense page through Inertia and handle create, update, and delete redirects.
+- Expense persistence, validation, serialization, filtering, sorting, pagination, responsive UI, and automated tests are implemented.
+- The original implementation history, including the superseded JSON API architecture, is retained in `IMPLEMENTATION_PHASES.md`.
 
 ## 3. Product Goal
 
-Build a responsive single-user web application that allows a user to create, find, review, update, and delete expense records through a React interface backed exclusively by a Laravel JSON API.
+Build a responsive single-user web application that allows a user to create, find, review, update, and delete expense records through an Inertia-powered React interface backed by Laravel.
 
-The implementation should demonstrate clear separation of concerns, robust validation, consistent API responses, accessible UI behavior, useful automated tests, and explicit verification reporting.
+The implementation should demonstrate clear separation of concerns, robust validation, stable Inertia props and redirects, accessible UI behavior, useful automated tests, and explicit verification reporting.
 
 ## 4. Scope
 
@@ -129,7 +125,7 @@ The category filter should include predefined categories and distinct custom cat
 
 The main screen must:
 
-- Fetch expenses from the Laravel API through a frontend service module.
+- Receive expenses as serialized Inertia page props from Laravel.
 - Display title, amount, category, expense date, and available actions.
 - Format amounts with `₱`, grouping separators, and exactly two decimal places.
 - Format dates consistently in a human-readable form without changing the stored calendar date because of timezone conversion.
@@ -151,14 +147,14 @@ The list must support:
 
 Filter behavior must meet these rules:
 
-- Filter state is sent as API query parameters; filtering must not rely only on the currently loaded page.
+- Filter state is sent as URL query parameters through Inertia; filtering must not rely only on the currently loaded page.
 - An invalid date range, where the start date is later than the end date, must be rejected with a clear message.
 - Changing a search or filter resets the current page to page 1.
 - Input should be debounced where appropriate so title search does not generate a request for every rapid keystroke.
 
 ### 7.3 Sorting
 
-The API and UI must support ascending and descending sorting for:
+The server and UI must support ascending and descending sorting for:
 
 - `title`
 - `amount`
@@ -171,7 +167,7 @@ All sorts must include `id` as a deterministic tie-breaker.
 
 ### 7.4 Pagination
 
-- The API must use server-side pagination.
+- Laravel must use server-side pagination.
 - The default page size is 10 expenses.
 - Supported page sizes are 10, 25, and 50.
 - Unsupported page sizes must be rejected or normalized consistently.
@@ -180,7 +176,7 @@ All sorts must include `id` as a deterministic tie-breaker.
 
 ### 7.5 View Expense
 
-The user must be able to view all fields for one expense, including notes and timestamps where useful. A request for an unknown expense must produce a clear not-found state.
+The user must be able to view all fields for one expense, including notes and timestamps where useful. The details dialog uses the complete expense data already supplied in the paginated Inertia props.
 
 ### 7.6 Create Expense
 
@@ -189,11 +185,11 @@ The create form must:
 - Include all expense fields.
 - Use the conditional custom-category behavior defined in Section 6.
 - Apply useful client-side constraints for immediate feedback.
-- Treat the Laravel API as the authoritative validation boundary.
-- Display field-specific errors returned with a `422` response.
+- Treat Laravel Form Requests as the authoritative validation boundary.
+- Display field-specific errors supplied by Inertia after Laravel redirects back.
 - Prevent accidental duplicate submissions while the request is pending.
 - Add the newly created expense to the correct list state or refresh the list after success.
-- Show a success notification and close or reset the form only after a successful API response.
+- Show a success notification and close or reset the form only after a successful Inertia redirect.
 
 ### 7.7 Update Expense
 
@@ -204,7 +200,7 @@ The edit form must:
 - Prevent duplicate submissions while the update is pending.
 - Reflect the saved values in the list or refresh the list after success.
 - Keep the entered values available when validation fails.
-- Show a success notification only after the API confirms the update.
+- Show a success notification only after Laravel confirms the update.
 
 ### 7.8 Delete Expense
 
@@ -213,43 +209,42 @@ The edit form must:
 - Cancelling must not modify data.
 - A successful deletion must remove the expense from the visible result or refresh the affected page.
 - If deletion leaves a non-first page empty, the UI must navigate to the nearest valid page.
-- API failures must leave the record visible and show an actionable error message.
+- Request failures must leave the record visible and show an actionable error message.
 
 ## 8. Backend Architecture
 
-The frontend must communicate with Laravel exclusively through the JSON API.
+The frontend communicates with Laravel exclusively through Inertia web routes.
 
 Every backend request must follow this flow:
 
-`Route -> Controller -> Form Request -> Eloquent Model -> API Resource`
+`Route -> Controller -> Form Request -> Eloquent Model -> Resource -> Inertia response/redirect`
 
 Required backend responsibilities:
 
-- API routes use an `/api/v1` prefix.
-- A resource controller provides `index`, `show`, `store`, `update`, and `destroy` actions.
+- The root route renders the expense index page; `/expenses` routes handle create, update, and delete operations.
+- The controller provides `index`, `store`, `update`, and `destroy`; the index prop contains every field needed by the details dialog.
 - Route model binding resolves individual expenses.
 - Store and update validation lives in dedicated Form Request classes.
 - List-query validation should use a dedicated Form Request so filters, sorting, direction, page, and page size are validated before query construction.
-- Controllers coordinate validated input, Eloquent operations, and API responses; they must not contain duplicated validation rules.
+- Controllers coordinate validated input, Eloquent operations, Inertia props, and redirects; they must not contain duplicated validation rules.
 - Only validated and intended attributes may be passed to mass assignment.
-- An API Resource defines the public expense representation.
+- An Eloquent Resource defines the expense representation supplied through Inertia.
 - Reusable query constraints may be expressed as focused Eloquent scopes when they improve clarity.
 - Additional action or service classes should only be introduced when real reusable business logic justifies them.
-- JSON rendering must remain consistent for API and `Accept: application/json` requests.
+- Mutations redirect back, validation errors use Laravel's session error flow, and success messages use Inertia flash data.
 
 No authentication middleware or ownership logic is required in this assessment.
 
-## 9. API Contract
+## 9. Inertia Route and Prop Contract
 
-### 9.1 Endpoints
+### 9.1 Routes
 
-| Method | Endpoint | Purpose | Success status |
+| Method | Route | Purpose | Response |
 | --- | --- | --- | --- |
-| `GET` | `/api/v1/expenses` | List, search, filter, sort, and paginate expenses | `200 OK` |
-| `POST` | `/api/v1/expenses` | Create an expense | `201 Created` |
-| `GET` | `/api/v1/expenses/{expense}` | Retrieve one expense | `200 OK` |
-| `PUT/PATCH` | `/api/v1/expenses/{expense}` | Update an expense | `200 OK` |
-| `DELETE` | `/api/v1/expenses/{expense}` | Delete an expense | `204 No Content` |
+| `GET` | `/` | Render, search, filter, sort, and paginate expenses | Inertia `expenses/index` page |
+| `POST` | `/expenses` | Create an expense | Redirect back with success flash |
+| `PUT/PATCH` | `/expenses/{expense}` | Update an expense | Redirect back with success flash |
+| `DELETE` | `/expenses/{expense}` | Delete an expense | Redirect back with success flash |
 
 ### 9.2 List Query Parameters
 
@@ -266,9 +261,9 @@ No authentication middleware or ownership logic is required in this assessment.
 
 Default list behavior is `sort=expense_date`, `direction=desc`, `page=1`, and `per_page=10`.
 
-### 9.3 Expense Representation
+### 9.3 Page Props and Expense Representation
 
-The API Resource must return a stable shape containing:
+The index page receives `expenses`, `filters`, and `categories` props. The Resource must provide a stable expense shape containing:
 
 ```json
 {
@@ -285,44 +280,43 @@ The API Resource must return a stable shape containing:
 
 `amount` should be serialized as a fixed two-decimal string to avoid floating-point ambiguity. The frontend is responsible for `₱` display formatting.
 
-Paginated list responses must retain Laravel pagination metadata and links through the API Resource collection.
+The `expenses` prop must retain Laravel pagination metadata and links through the Resource collection. `filters` contains normalized effective query values and `categories` contains distinct stored categories.
 
-### 9.4 Error Responses
+### 9.4 Validation and Errors
 
-- Invalid input returns `422 Unprocessable Entity` with field-specific errors.
-- An unknown expense returns `404 Not Found`.
+- Invalid list queries redirect to the canonical index with session errors.
+- Invalid writes redirect back with field-specific Inertia form errors and preserved component state.
+- An unknown bound expense returns `404 Not Found`.
 - Unsupported HTTP methods follow Laravel's standard response.
-- Unexpected server errors return a generic JSON message without exposing stack traces or sensitive configuration outside development.
-- Frontend code must not assume every error response has the success-response shape.
+- Unexpected HTTP and network failures show actionable feedback without exposing sensitive configuration.
 
 ## 10. Frontend Architecture
 
 Every frontend request must follow this flow:
 
-`Page/Component -> Expense Service -> Laravel API`
+`Inertia Page/Component -> router/useForm -> Laravel web route`
 
 The frontend must:
 
 - Use React with strict TypeScript settings.
 - Use `.tsx` for React components and `.ts` for non-visual modules.
-- Define explicit request, response, pagination, filter, and validation-error types.
+- Define explicit expense, page-prop, pagination, filter, and validation-error types.
 - Avoid TypeScript `any`.
-- Centralize HTTP behavior in service modules rather than calling `fetch` or Axios throughout components.
+- Use Inertia visits and forms rather than direct `fetch` or Axios calls.
 - Keep page-level data orchestration separate from reusable presentation and form components.
 - Keep components reasonably small and extract repeated UI patterns.
-- Use React Router only if multiple client-side routes materially improve the implementation; a focused single-page CRUD interface may use dialogs or sheets instead.
+- Keep the focused single-page CRUD interface and use dialogs for create, edit, details, and deletion.
 - Avoid adding a state-management library unless the application develops state that cannot remain clear with React's built-in state and hooks.
 
 Suggested frontend responsibilities:
 
-- `ExpensePage`: owns list query state and request coordination.
+- `expenses/index`: receives Inertia props and coordinates list visits and dialogs.
 - `ExpenseTable` or responsive expense list: renders results and actions.
 - `ExpenseFilters`: controls search, filters, sorting, and reset behavior.
-- `ExpenseForm`: shared create/update fields and validation presentation.
+- `ExpenseForm`: shared create/update fields, Inertia submissions, and validation presentation.
 - `ExpenseDetails`: presents one complete expense.
 - `DeleteExpenseDialog`: confirms destructive action.
-- `expenseService`: owns API requests and response/error normalization.
-- Expense TypeScript types: define domain and API contracts.
+- Expense TypeScript types: define domain and Inertia page contracts.
 
 ## 11. User Interface and Design Requirements
 
@@ -360,7 +354,7 @@ Recommended Shadcn/ui primitives include Button, Input, Textarea, Select, Card, 
 - Render titles, notes, and custom categories as text so user content cannot inject markup.
 - Use Eloquent and parameterized query behavior; do not concatenate input into raw SQL.
 - Do not expose environment values, database credentials, or exception details to the frontend.
-- Use decimal database storage and string-based API serialization for money; do not use binary floating-point storage for `amount`.
+- Use decimal database storage and string-based Resource serialization for money; do not use binary floating-point storage for `amount`.
 - Treat client-side validation as usability only; it must never replace server validation.
 
 ## 14. Automated Testing Requirements
@@ -371,7 +365,7 @@ Use PHPUnit feature tests as the primary backend coverage. Tests that access the
 
 Coverage must include:
 
-- List endpoint response shape and deterministic default ordering.
+- Inertia index component, prop shape, and deterministic default ordering.
 - Pagination metadata and supported page sizes.
 - Title search.
 - Category filtering, including a custom category.
@@ -379,7 +373,7 @@ Coverage must include:
 - Supported sorts and directions.
 - Rejection of invalid filters, date ranges, sort keys, directions, pages, and page sizes.
 - Prevention of dynamic sort/query injection.
-- Retrieval of an existing expense and `404` for a missing expense.
+- Complete expense serialization in list props and `404` for missing route-bound mutations.
 - Successful creation with every field and with nullable notes.
 - Successful creation using a custom category value.
 - Successful update, including switching between predefined and custom category values.
@@ -389,7 +383,7 @@ Coverage must include:
 - Amount boundaries, positivity, numeric format, and decimal precision.
 - Rejection of future expense dates.
 - Rejection of unexpected payload keys as persisted model attributes.
-- Stable API Resource field names and money/date serialization.
+- Stable Resource field names and money/date serialization.
 
 Tests must assert observable behavior. Write operations must assert both the response and the resulting database state. Date-dependent tests must freeze the application date.
 
@@ -399,7 +393,7 @@ Configure Vitest, React Testing Library, `jest-dom`, and a browser-like test env
 
 Coverage must include:
 
-- Expense-service query serialization and success/error normalization.
+- Query-parameter serialization that omits blank and default values.
 - Loading, populated, empty, no-results, and request-error list states.
 - Peso formatting with exactly two decimal places.
 - Form rendering and population for create and edit modes.
@@ -412,7 +406,7 @@ Coverage must include:
 - Search/filter reset and page-reset behavior.
 - Keyboard-accessible names for important controls.
 
-Tests should mock the service boundary or network calls deterministically and must not depend on a running external server.
+Tests should mock the Inertia router boundary deterministically and must not depend on a running external server.
 
 ## 15. Quality Gates
 
@@ -448,7 +442,7 @@ Required reporting example:
 
 ```text
 Verification
-- PASS: php artisan test --compact tests/Feature/Api/ExpenseControllerTest.php
+- PASS: php artisan test --compact tests/Feature/ExpenseIndexTest.php
 - PASS: vendor/bin/pint --dirty --format agent
 - PASS: npm run typecheck
 - PASS: npm run lint
@@ -461,26 +455,26 @@ If a required script has not been configured or a tool is unavailable, report th
 
 ## 16. Implementation Plan
 
-### Phase 1: Frontend and API Foundation
+### Phase 1: Frontend Foundation
 
 - Install and configure React, TypeScript, the Vite React plugin, Shadcn/ui, ESLint, Vitest, and React Testing Library dependencies compatible with the existing toolchain.
 - Convert the frontend entry point to TypeScript/React.
 - Configure strict TypeScript, linting, frontend test scripts, and the test environment.
-- Replace the default welcome page with a minimal Blade shell that mounts the React application.
-- Enable versioned API routing.
+- Replace the default welcome page with an Inertia root template that mounts the React application.
+- Install and configure the Laravel and React Inertia adapters.
 
-### Phase 2: Expense Persistence and API
+### Phase 2: Expense Persistence and Inertia Backend
 
 - Generate the expense model, migration, factory, and seeder using Artisan.
 - Implement casts, fillable attributes, and representative factory data.
-- Generate Form Requests, API Resource, controller, and API feature tests.
-- Implement CRUD endpoints, validation, filtering, allowlisted sorting, deterministic ordering, and pagination.
-- Verify API behavior and format PHP changes.
+- Generate Form Requests, Resource, controller, and Inertia feature tests.
+- Implement web routes, page props, redirect-based mutations, validation, filtering, allowlisted sorting, deterministic ordering, and pagination.
+- Verify Inertia behavior and format PHP changes.
 
-### Phase 3: Frontend Service and Core UI
+### Phase 3: Inertia React Page and Core UI
 
-- Define expense and API TypeScript types.
-- Implement the centralized expense service.
+- Define expense and Inertia page-prop TypeScript types.
+- Implement Inertia visits, URL query serialization, and `useForm` submissions.
 - Build the responsive application layout and expense list.
 - Implement loading, empty, no-results, and error states.
 - Add search, filters, sorting, pagination, and peso/date formatting.
@@ -495,7 +489,7 @@ If a required script has not been configured or a tool is unavailable, report th
 
 ### Phase 5: Frontend Tests and Final Verification
 
-- Add meaningful component and service tests.
+- Add meaningful component, page, and query-serialization tests.
 - Run the focused test commands while iterating.
 - Run Pint, the full backend suite, TypeScript checking, ESLint, frontend tests, and the production build.
 - Report every run and every omitted gate using Section 15.
@@ -505,9 +499,9 @@ If a required script has not been configured or a tool is unavailable, report th
 
 The assessment is accepted when:
 
-- All five expense CRUD operations work through the React interface and versioned Laravel API.
-- The backend follows the required Route -> Controller -> Form Request -> Eloquent Model -> API Resource flow.
-- The frontend follows the required Page/Component -> Service -> Laravel API flow.
+- All five expense CRUD operations work through the Inertia-powered React interface and Laravel web routes.
+- The backend follows the required Route -> Controller -> Form Request -> Eloquent Model -> Resource -> Inertia flow.
+- The frontend follows the required Page/Component -> Inertia router/useForm -> Laravel web route flow.
 - All five expense fields persist and serialize correctly.
 - Amounts use decimal-safe storage and display with `₱` and two decimal places.
 - Future expense dates are rejected by the server and explained in the UI.
