@@ -1,3 +1,4 @@
+import { useForm } from '@inertiajs/react';
 import { useState, type FormEvent } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -6,12 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { isPredefinedCategory, predefinedCategories } from '@/lib/categories';
 import { getManilaCalendarDate } from '@/lib/formatters';
-import { ExpenseServiceError } from '@/services/expense-service';
 import type { Expense, ExpenseFieldErrors, ExpenseInput } from '@/types/expense';
 
 interface ExpenseFormProps {
     expense?: Expense | undefined;
-    onSubmit: (input: ExpenseInput) => Promise<void>;
+    onSuccess: (message: string) => void;
     onCancel: () => void;
 }
 
@@ -19,7 +19,7 @@ const selectClasses =
     'border-input bg-background text-foreground focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]';
 
 function FieldError({ name, errors }: { name: keyof ExpenseInput; errors: ExpenseFieldErrors }) {
-    const message = errors[name]?.[0];
+    const message = errors[name];
 
     return message ? (
         <p id={`${name}-error`} role="alert" className="text-destructive text-sm">
@@ -28,51 +28,65 @@ function FieldError({ name, errors }: { name: keyof ExpenseInput; errors: Expens
     ) : null;
 }
 
-export function ExpenseForm({ expense, onSubmit, onCancel }: ExpenseFormProps) {
+export function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFormProps) {
     const initialCustomCategory = expense !== undefined && !isPredefinedCategory(expense.category);
-    const [title, setTitle] = useState(expense?.title ?? '');
-    const [amount, setAmount] = useState(expense?.amount ?? '');
     const [categoryChoice, setCategoryChoice] = useState(initialCustomCategory ? 'Other' : (expense?.category ?? 'Food'));
     const [customCategory, setCustomCategory] = useState(initialCustomCategory ? expense.category : '');
-    const [expenseDate, setExpenseDate] = useState(expense?.expense_date ?? '');
-    const [notes, setNotes] = useState(expense?.notes ?? '');
-    const [errors, setErrors] = useState<ExpenseFieldErrors>({});
     const [formError, setFormError] = useState<string | null>(null);
-    const [isSaving, setIsSaving] = useState(false);
+    const form = useForm<ExpenseInput>({
+        title: expense?.title ?? '',
+        amount: expense?.amount ?? '',
+        category: expense?.category ?? 'Food',
+        expense_date: expense?.expense_date ?? '',
+        notes: expense?.notes ?? '',
+    });
 
-    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
-        if (isSaving) {
+        if (form.processing) {
             return;
         }
 
-        setErrors({});
         setFormError(null);
-        setIsSaving(true);
+        form.clearErrors();
+        form.transform((data) => {
+            const notes = data.notes?.trim();
 
-        try {
-            await onSubmit({
-                title: title.trim(),
-                amount: amount.trim(),
+            return {
+                ...data,
+                title: data.title.trim(),
+                amount: data.amount.trim(),
                 category: categoryChoice === 'Other' ? customCategory.trim() : categoryChoice,
-                expense_date: expenseDate,
-                notes: notes.trim() || null,
-            });
-        } catch (error) {
-            if (error instanceof ExpenseServiceError) {
-                setErrors(error.errors);
-                setFormError(error.status === 422 ? 'Please correct the highlighted fields.' : error.message);
-            } else {
+                notes: notes === '' ? null : (notes ?? null),
+            };
+        });
+
+        const options = {
+            preserveScroll: true,
+            onError: () => setFormError('Please correct the highlighted fields.'),
+            onHttpException: () => {
                 setFormError('Unable to save the expense. Please try again.');
-            }
-        } finally {
-            setIsSaving(false);
+                return false;
+            },
+            onNetworkError: () => {
+                setFormError('Unable to reach the server. Please try again.');
+                return false;
+            },
+            onSuccess: (page: { flash: { success?: string } }) => {
+                onSuccess(page.flash.success ?? (expense ? 'Expense updated.' : 'Expense created.'));
+            },
+        };
+
+        if (expense) {
+            form.put(`/expenses/${expense.id}`, options);
+        } else {
+            form.post('/expenses', options);
         }
     }
 
     return (
-        <form onSubmit={(event) => void handleSubmit(event)} className="flex min-w-0 flex-col gap-5 overflow-hidden">
+        <form onSubmit={handleSubmit} className="flex min-w-0 flex-col gap-5 overflow-hidden">
             {formError && (
                 <p role="alert" className="text-destructive text-sm">
                     {formError}
@@ -82,14 +96,14 @@ export function ExpenseForm({ expense, onSubmit, onCancel }: ExpenseFormProps) {
                 <Label htmlFor="title">Title</Label>
                 <Input
                     id="title"
-                    value={title}
-                    onChange={(event) => setTitle(event.target.value)}
+                    value={form.data.title}
+                    onChange={(event) => form.setData('title', event.target.value)}
                     required
                     maxLength={255}
-                    aria-invalid={Boolean(errors.title)}
-                    aria-describedby={errors.title ? 'title-error' : undefined}
+                    aria-invalid={Boolean(form.errors.title)}
+                    aria-describedby={form.errors.title ? 'title-error' : undefined}
                 />
-                <FieldError name="title" errors={errors} />
+                <FieldError name="title" errors={form.errors} />
             </div>
             <div className="grid min-w-0 gap-5 sm:grid-cols-2">
                 <div className="flex min-w-0 flex-col gap-2">
@@ -101,13 +115,13 @@ export function ExpenseForm({ expense, onSubmit, onCancel }: ExpenseFormProps) {
                         min="0.01"
                         max="9999999999.99"
                         step="0.01"
-                        value={amount}
-                        onChange={(event) => setAmount(event.target.value)}
+                        value={form.data.amount}
+                        onChange={(event) => form.setData('amount', event.target.value)}
                         required
-                        aria-invalid={Boolean(errors.amount)}
-                        aria-describedby={errors.amount ? 'amount-error' : undefined}
+                        aria-invalid={Boolean(form.errors.amount)}
+                        aria-describedby={form.errors.amount ? 'amount-error' : undefined}
                     />
-                    <FieldError name="amount" errors={errors} />
+                    <FieldError name="amount" errors={form.errors} />
                 </div>
                 <div className="flex min-w-0 flex-col gap-2">
                     <Label htmlFor="expense_date">Expense date</Label>
@@ -115,13 +129,13 @@ export function ExpenseForm({ expense, onSubmit, onCancel }: ExpenseFormProps) {
                         id="expense_date"
                         type="date"
                         max={getManilaCalendarDate()}
-                        value={expenseDate}
-                        onChange={(event) => setExpenseDate(event.target.value)}
+                        value={form.data.expense_date}
+                        onChange={(event) => form.setData('expense_date', event.target.value)}
                         required
-                        aria-invalid={Boolean(errors.expense_date)}
-                        aria-describedby={errors.expense_date ? 'expense_date-error' : undefined}
+                        aria-invalid={Boolean(form.errors.expense_date)}
+                        aria-describedby={form.errors.expense_date ? 'expense_date-error' : undefined}
                     />
-                    <FieldError name="expense_date" errors={errors} />
+                    <FieldError name="expense_date" errors={form.errors} />
                 </div>
             </div>
             <div className="flex flex-col gap-2">
@@ -132,11 +146,11 @@ export function ExpenseForm({ expense, onSubmit, onCancel }: ExpenseFormProps) {
                     value={categoryChoice}
                     onChange={(event) => {
                         setCategoryChoice(event.target.value);
-                        setErrors({});
+                        form.clearErrors('category');
                     }}
                     required
-                    aria-invalid={Boolean(errors.category)}
-                    aria-describedby={errors.category ? 'category-error' : undefined}
+                    aria-invalid={Boolean(form.errors.category)}
+                    aria-describedby={form.errors.category ? 'category-error' : undefined}
                 >
                     {predefinedCategories.map((category) => (
                         <option key={category} value={category}>
@@ -154,12 +168,12 @@ export function ExpenseForm({ expense, onSubmit, onCancel }: ExpenseFormProps) {
                             onChange={(event) => setCustomCategory(event.target.value)}
                             required
                             maxLength={100}
-                            aria-invalid={Boolean(errors.category)}
-                            aria-describedby={errors.category ? 'category-error' : undefined}
+                            aria-invalid={Boolean(form.errors.category)}
+                            aria-describedby={form.errors.category ? 'category-error' : undefined}
                         />
                     </div>
                 )}
-                <FieldError name="category" errors={errors} />
+                <FieldError name="category" errors={form.errors} />
             </div>
             <div className="flex flex-col gap-2">
                 <Label htmlFor="notes">Notes (optional)</Label>
@@ -167,21 +181,21 @@ export function ExpenseForm({ expense, onSubmit, onCancel }: ExpenseFormProps) {
                     id="notes"
                     className="h-32 max-h-56 resize-y"
                     wrap="soft"
-                    value={notes}
-                    onChange={(event) => setNotes(event.target.value)}
+                    value={form.data.notes ?? ''}
+                    onChange={(event) => form.setData('notes', event.target.value)}
                     maxLength={2000}
                     rows={4}
-                    aria-invalid={Boolean(errors.notes)}
-                    aria-describedby={errors.notes ? 'notes-error' : undefined}
+                    aria-invalid={Boolean(form.errors.notes)}
+                    aria-describedby={form.errors.notes ? 'notes-error' : undefined}
                 />
-                <FieldError name="notes" errors={errors} />
+                <FieldError name="notes" errors={form.errors} />
             </div>
             <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving}>
+                <Button type="button" variant="outline" onClick={onCancel} disabled={form.processing}>
                     Cancel
                 </Button>
-                <Button type="submit" disabled={isSaving}>
-                    {isSaving ? 'Saving…' : expense ? 'Save changes' : 'Create expense'}
+                <Button type="submit" disabled={form.processing}>
+                    {form.processing ? 'Saving…' : expense ? 'Save changes' : 'Create expense'}
                 </Button>
             </div>
         </form>
