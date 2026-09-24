@@ -89,17 +89,17 @@ export function ExpenseDetails({ expense, isLoading, error }: ExpenseDetailsProp
 
     return (
         <div className="min-w-0">
-            <dl className="grid gap-5 border-b bg-violet-50/70 px-6 py-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <dl className="grid gap-5 border-b bg-blue-50/70 px-6 py-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                 <div className="flex min-w-0 flex-col gap-1.5">
                     <dt className="text-muted-foreground flex items-center gap-2 text-xs font-semibold tracking-wider uppercase">
-                        <WalletCardsIcon aria-hidden="true" className="size-4 text-violet-600" />
+                        <WalletCardsIcon aria-hidden="true" className="size-4 text-blue-600" />
                         Amount
                     </dt>
                     <dd className="text-3xl font-bold tracking-tight tabular-nums">{formatPeso(expense.amount)}</dd>
                 </div>
                 <div className="flex min-w-0 flex-col gap-1.5 sm:items-end">
                     <dt className="text-muted-foreground flex items-center gap-2 text-xs font-semibold tracking-wider uppercase">
-                        <TagIcon aria-hidden="true" className="size-4 text-violet-600" />
+                        <TagIcon aria-hidden="true" className="size-4 text-blue-600" />
                         Category
                     </dt>
                     <dd><Badge variant="secondary">{expense.category}</Badge></dd>
