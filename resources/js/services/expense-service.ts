@@ -53,12 +53,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     let response: Response;
 
     try {
+        const headers = new Headers(init?.headers);
+        headers.set('Accept', 'application/json');
+
         response = await fetch(path, {
             ...init,
-            headers: {
-                Accept: 'application/json',
-                ...init?.headers,
-            },
+            headers,
         });
     } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') {
@@ -90,11 +90,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const expenseService = {
     list(query: ExpenseQuery, signal?: AbortSignal): Promise<ExpenseListResponse> {
-        return request<ExpenseListResponse>(`${expenseEndpoint}?${serializeExpenseQuery(query)}`, { signal });
+        return request<ExpenseListResponse>(`${expenseEndpoint}?${serializeExpenseQuery(query)}`, signal ? { signal } : undefined);
     },
 
     async show(id: number, signal?: AbortSignal): Promise<Expense> {
-        const response = await request<ExpenseResponse>(`${expenseEndpoint}/${id}`, { signal });
+        const response = await request<ExpenseResponse>(`${expenseEndpoint}/${id}`, signal ? { signal } : undefined);
         return response.data;
     },
 
