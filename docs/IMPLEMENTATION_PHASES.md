@@ -7,7 +7,7 @@ This document records the implementation plan, the purpose of each phase, the co
 | Phase | Area | Status |
 | --- | --- | --- |
 | 1 | Backend scaffold and API implementation | Finished |
-| 2 | Backend verification | Not started |
+| 2 | Backend verification | Finished |
 | 3 | Frontend foundation | Not started |
 | 4 | Frontend components | Not started |
 | 5 | React-to-Laravel connection | Not started |
@@ -77,9 +77,31 @@ All requested files were reported as created successfully.
 
 ## Phase 2 — Backend Verification
 
-**Status: Not started**
+**Status: Finished**
 
-The next checkpoint will run the migration, inspect the registered API routes, format changed PHP files, run focused expense tests, and run the complete backend suite. Phase 3 will not begin until the command output has been reviewed and any failures are corrected.
+### Developer command checkpoint
+
+The developer ran the approved verification batch. The PostgreSQL migration, API route listing, and Pint passed. The focused API suite reported 2 failures among 52 tests; `composer test` reported the same 2 failures among 54 tests.
+
+Both failures came from the create and update tests comparing a date-only string directly to SQLite's raw stored value. The in-memory SQLite test connection returned midnight timestamps for Eloquent's cast date (`2026-09-24 00:00:00`), while the API returned the required `YYYY-MM-DD` value. These were test assertion mismatches, not failed API requests or incorrect response data.
+
+### Correction
+
+The two tests still assert the saved non-date fields against the database. They now read the persisted expense through its Eloquent date cast and assert its calendar date with `toDateString()`. This verifies the intended stored date across the SQLite test connection and PostgreSQL runtime connection.
+
+### Verification results after correction
+
+| Command | Result | Purpose |
+| --- | --- | --- |
+| `php artisan migrate --no-interaction` (developer) | PASS | Created the `expenses` table on the configured local database. |
+| `php artisan route:list --path=api/v1 --except-vendor` (developer) | PASS | Confirmed all five versioned expense resource routes. |
+| `php artisan test --compact tests/Feature/Api/V1/ExpenseStoreTest.php` | PASS — 18 tests | Rechecked creation and validation after editing its test. |
+| `php artisan test --compact tests/Feature/Api/V1/ExpenseUpdateTest.php` | PASS — 5 tests | Rechecked update and validation after editing its test. |
+| `php vendor/bin/pint --dirty --format agent` | PASS | Formatted the changed PHP tests. |
+| `php artisan test --compact tests/Feature/Api/V1` | PASS — 52 tests, 214 assertions | Rechecked the complete expense API feature suite. |
+| `composer test` | PASS — 54 tests, 216 assertions | Rechecked the complete backend suite, including existing skeleton tests. |
+
+The developer's initial failed test runs are retained above for the audit trail; the corrected runs passed. The default placeholder tests remain until the planned Phase 6 cleanup.
 
 ## Phase 3 — Frontend Foundation
 

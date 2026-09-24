@@ -39,9 +39,10 @@ class ExpenseUpdateTest extends TestCase
             'title' => 'Updated title',
             'amount' => 999.95,
             'category' => 'Pet Care',
-            'expense_date' => '2026-09-23',
             'notes' => 'Updated notes',
         ]);
+
+        $this->assertSame('2026-09-23', $expense->fresh()->expense_date->toDateString());
     }
 
     public function test_can_switch_a_custom_category_to_a_predefined_category(): void

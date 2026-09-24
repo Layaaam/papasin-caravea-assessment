@@ -35,9 +35,10 @@ class ExpenseStoreTest extends TestCase
             'title' => 'Team lunch',
             'amount' => 1250.50,
             'category' => 'Food',
-            'expense_date' => '2026-09-24',
             'notes' => 'Client planning session',
         ]);
+
+        $this->assertSame('2026-09-24', Expense::query()->sole()->expense_date->toDateString());
     }
 
     public function test_allows_nullable_notes_and_stores_blank_notes_as_null(): void
