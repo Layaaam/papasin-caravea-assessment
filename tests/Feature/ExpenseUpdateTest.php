@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature\Api\V1;
+namespace Tests\Feature;
 
 use App\Models\Expense;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -10,15 +10,12 @@ class ExpenseUpdateTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_valid_payload_updates_expense_and_returns_saved_values(): void
+    public function test_valid_payload_updates_expense_redirects_back_and_flashes_success(): void
     {
         $this->travelTo('2026-09-24 12:00:00');
-        $expense = Expense::factory()->create([
-            'title' => 'Old title',
-            'category' => 'Food',
-        ]);
+        $expense = Expense::factory()->create(['title' => 'Old title', 'category' => 'Food']);
 
-        $response = $this->putJson(route('api.v1.expenses.update', $expense), [
+        $response = $this->from(route('expenses.index'))->put(route('expenses.update', $expense), [
             'title' => '  Updated title  ',
             'amount' => '999.95',
             'category' => '  Pet Care  ',
@@ -27,13 +24,8 @@ class ExpenseUpdateTest extends TestCase
         ]);
 
         $response
-            ->assertOk()
-            ->assertJsonPath('data.title', 'Updated title')
-            ->assertJsonPath('data.amount', '999.95')
-            ->assertJsonPath('data.category', 'Pet Care')
-            ->assertJsonPath('data.expense_date', '2026-09-23')
-            ->assertJsonPath('data.notes', 'Updated notes');
-
+            ->assertRedirectToRoute('expenses.index')
+            ->assertInertiaFlash('success', 'Expense updated.');
         $this->assertDatabaseHas('expenses', [
             'id' => $expense->id,
             'title' => 'Updated title',
@@ -41,7 +33,6 @@ class ExpenseUpdateTest extends TestCase
             'category' => 'Pet Care',
             'notes' => 'Updated notes',
         ]);
-
         $this->assertSame('2026-09-23', $expense->fresh()->expense_date->toDateString());
     }
 
@@ -50,35 +41,28 @@ class ExpenseUpdateTest extends TestCase
         $this->travelTo('2026-09-24 12:00:00');
         $expense = Expense::factory()->create(['category' => 'Pet Care']);
 
-        $response = $this->patchJson(route('api.v1.expenses.update', $expense), $this->validPayload([
+        $response = $this->from(route('expenses.index'))->patch(route('expenses.update', $expense), $this->validPayload([
             'category' => 'Food',
         ]));
 
-        $response
-            ->assertOk()
-            ->assertJsonPath('data.category', 'Food');
-
+        $response->assertRedirectToRoute('expenses.index');
         $this->assertDatabaseHas('expenses', ['id' => $expense->id, 'category' => 'Food']);
     }
 
-    public function test_returns_422_and_preserves_expense_when_payload_is_invalid(): void
+    public function test_invalid_payload_redirects_back_and_preserves_expense(): void
     {
         $this->travelTo('2026-09-24 12:00:00');
-        $expense = Expense::factory()->create([
-            'title' => 'Original title',
-            'amount' => '100.00',
-        ]);
+        $expense = Expense::factory()->create(['title' => 'Original title', 'amount' => '100.00']);
 
-        $response = $this->putJson(route('api.v1.expenses.update', $expense), $this->validPayload([
+        $response = $this->from(route('expenses.index'))->put(route('expenses.update', $expense), $this->validPayload([
             'title' => '',
             'amount' => '1.234',
             'expense_date' => '2026-09-25',
         ]));
 
         $response
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['title', 'amount', 'expense_date']);
-
+            ->assertRedirectToRoute('expenses.index')
+            ->assertSessionHasErrors(['title', 'amount', 'expense_date']);
         $this->assertDatabaseHas('expenses', [
             'id' => $expense->id,
             'title' => 'Original title',
@@ -92,33 +76,26 @@ class ExpenseUpdateTest extends TestCase
         $expense = Expense::factory()->create();
         $originalCreatedAt = $expense->created_at?->format('Y-m-d H:i:s');
 
-        $response = $this->putJson(route('api.v1.expenses.update', $expense), $this->validPayload([
+        $response = $this->from(route('expenses.index'))->put(route('expenses.update', $expense), $this->validPayload([
             'id' => 999,
             'created_at' => '2000-01-01 00:00:00',
             'unexpected' => 'value',
         ]));
 
-        $response
-            ->assertOk()
-            ->assertJsonPath('data.id', $expense->id)
-            ->assertJsonMissingPath('data.unexpected');
-
+        $response->assertRedirectToRoute('expenses.index');
         $expense->refresh();
-
+        $this->assertNotSame(999, $expense->id);
         $this->assertSame($originalCreatedAt, $expense->created_at?->format('Y-m-d H:i:s'));
     }
 
     public function test_returns_404_for_a_missing_expense(): void
     {
-        $response = $this->putJson(route('api.v1.expenses.update', 999999), $this->validPayload());
+        $response = $this->put(route('expenses.update', 999999), $this->validPayload());
 
         $response->assertNotFound();
     }
 
-    /**
-     * @param  array<string, mixed>  $overrides
-     * @return array<string, mixed>
-     */
+    /** @param array<string, mixed> $overrides */
     private function validPayload(array $overrides = []): array
     {
         return array_replace([
