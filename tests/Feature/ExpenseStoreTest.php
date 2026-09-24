@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature\Api\V1;
+namespace Tests\Feature;
 
 use App\Models\Expense;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -11,11 +11,11 @@ class ExpenseStoreTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_valid_payload_creates_expense_and_returns_201(): void
+    public function test_valid_payload_creates_expense_redirects_back_and_flashes_success(): void
     {
         $this->travelTo('2026-09-24 12:00:00');
 
-        $response = $this->postJson(route('api.v1.expenses.store'), [
+        $response = $this->from(route('expenses.index'))->post(route('expenses.store'), [
             'title' => '  Team lunch  ',
             'amount' => '1250.50',
             'category' => '  Food  ',
@@ -24,12 +24,8 @@ class ExpenseStoreTest extends TestCase
         ]);
 
         $response
-            ->assertCreated()
-            ->assertJsonPath('data.title', 'Team lunch')
-            ->assertJsonPath('data.amount', '1250.50')
-            ->assertJsonPath('data.category', 'Food')
-            ->assertJsonPath('data.expense_date', '2026-09-24')
-            ->assertJsonPath('data.notes', 'Client planning session');
+            ->assertRedirectToRoute('expenses.index')
+            ->assertInertiaFlash('success', 'Expense created.');
 
         $this->assertDatabaseHas('expenses', [
             'title' => 'Team lunch',
@@ -37,87 +33,64 @@ class ExpenseStoreTest extends TestCase
             'category' => 'Food',
             'notes' => 'Client planning session',
         ]);
-
         $this->assertSame('2026-09-24', Expense::query()->sole()->expense_date->toDateString());
     }
 
-    public function test_allows_nullable_notes_and_stores_blank_notes_as_null(): void
+    public function test_stores_blank_notes_as_null_and_custom_categories_directly(): void
     {
         $this->travelTo('2026-09-24 12:00:00');
 
-        $response = $this->postJson(route('api.v1.expenses.store'), $this->validPayload([
+        $response = $this->from(route('expenses.index'))->post(route('expenses.store'), $this->validPayload([
+            'category' => 'Pet Care',
             'notes' => '   ',
         ]));
 
-        $response
-            ->assertCreated()
-            ->assertJsonPath('data.notes', null);
-
-        $this->assertDatabaseHas('expenses', ['notes' => null]);
-    }
-
-    public function test_stores_a_custom_category_value_directly(): void
-    {
-        $this->travelTo('2026-09-24 12:00:00');
-
-        $response = $this->postJson(route('api.v1.expenses.store'), $this->validPayload([
-            'category' => 'Pet Care',
-        ]));
-
-        $response
-            ->assertCreated()
-            ->assertJsonPath('data.category', 'Pet Care');
-
-        $this->assertDatabaseHas('expenses', ['category' => 'Pet Care']);
+        $response->assertRedirectToRoute('expenses.index');
+        $this->assertDatabaseHas('expenses', ['category' => 'Pet Care', 'notes' => null]);
     }
 
     public function test_accepts_documented_text_and_amount_boundaries(): void
     {
         $this->travelTo('2026-09-24 12:00:00');
 
-        $response = $this->postJson(route('api.v1.expenses.store'), $this->validPayload([
+        $response = $this->from(route('expenses.index'))->post(route('expenses.store'), $this->validPayload([
             'title' => str_repeat('a', 255),
             'amount' => '9999999999.99',
             'category' => str_repeat('b', 100),
             'notes' => str_repeat('c', 2000),
         ]));
 
-        $response
-            ->assertCreated()
-            ->assertJsonPath('data.amount', '9999999999.99');
-
+        $response->assertRedirectToRoute('expenses.index');
         $this->assertDatabaseCount('expenses', 1);
     }
 
-    public function test_returns_422_when_required_fields_are_missing(): void
+    public function test_missing_required_fields_redirect_back_with_errors(): void
     {
-        $response = $this->postJson(route('api.v1.expenses.store'), []);
+        $response = $this->from(route('expenses.index'))->post(route('expenses.store'), []);
 
         $response
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['title', 'amount', 'category', 'expense_date']);
+            ->assertRedirectToRoute('expenses.index')
+            ->assertSessionHasErrors(['title', 'amount', 'category', 'expense_date']);
+        $this->assertDatabaseCount('expenses', 0);
     }
 
     #[DataProvider('invalidPayloadCases')]
-    public function test_returns_422_for_invalid_expense_values(string $field, mixed $value): void
+    public function test_invalid_expense_values_redirect_back_without_persisting(string $field, mixed $value): void
     {
         $this->travelTo('2026-09-24 12:00:00');
 
-        $response = $this->postJson(
-            route('api.v1.expenses.store'),
+        $response = $this->from(route('expenses.index'))->post(
+            route('expenses.store'),
             $this->validPayload([$field => $value]),
         );
 
         $response
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors($field);
-
+            ->assertRedirectToRoute('expenses.index')
+            ->assertSessionHasErrors($field);
         $this->assertDatabaseCount('expenses', 0);
     }
 
-    /**
-     * @return array<string, array{string, mixed}>
-     */
+    /** @return array<string, array{string, mixed}> */
     public static function invalidPayloadCases(): array
     {
         return [
@@ -140,26 +113,19 @@ class ExpenseStoreTest extends TestCase
     {
         $this->travelTo('2026-09-24 12:00:00');
 
-        $response = $this->postJson(route('api.v1.expenses.store'), $this->validPayload([
+        $response = $this->from(route('expenses.index'))->post(route('expenses.store'), $this->validPayload([
             'id' => 999,
             'created_at' => '2000-01-01 00:00:00',
             'unexpected' => 'value',
         ]));
 
-        $response
-            ->assertCreated()
-            ->assertJsonMissingPath('data.unexpected');
-
+        $response->assertRedirectToRoute('expenses.index');
         $expense = Expense::query()->sole();
-
         $this->assertNotSame(999, $expense->id);
         $this->assertNotSame('2000-01-01 00:00:00', $expense->created_at?->format('Y-m-d H:i:s'));
     }
 
-    /**
-     * @param  array<string, mixed>  $overrides
-     * @return array<string, mixed>
-     */
+    /** @param array<string, mixed> $overrides */
     private function validPayload(array $overrides = []): array
     {
         return array_replace([
