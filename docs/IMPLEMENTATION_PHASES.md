@@ -11,9 +11,9 @@ The "Current Codebase Assessment" and phase outline in `REQUIREMENTS.md` describ
 | 1     | Backend scaffold and API implementation | Finished    |
 | 2     | Backend verification                    | Finished    |
 | 3     | Frontend foundation                     | Finished    |
-| 4     | Frontend components                     | Not started |
-| 5     | React-to-Laravel connection             | Not started |
-| 6     | Cleanup and final verification          | Not started |
+| 4     | Frontend components                     | Finished    |
+| 5     | React-to-Laravel connection             | Finished    |
+| 6     | Cleanup and final verification          | Finished    |
 
 ## Phase 1 — Backend Scaffold and API
 
@@ -165,18 +165,40 @@ The first type-check run failed because TypeScript 6 deprecates `baseUrl` and re
 
 ## Phase 4 — Frontend Components
 
-**Status: Not started**
+**Status: Finished**
 
-Generate the approved Shadcn primitives and build the expense page, filters, responsive results, pagination, shared form, details dialog, delete confirmation, formatters, and mocked component tests.
+The developer ran `npx shadcn@latest add button input textarea select card table dialog alert-dialog badge skeleton sonner label alert --yes`. It generated 13 UI primitives. Type checking then identified two missing packages imported by those generated files; the developer ran `npm install class-variance-authority lucide-react`, which succeeded with no reported vulnerabilities.
+
+- Added the expense page layout, search and filter controls, sorting, page-size selection, responsive table and mobile cards, empty and no-results states, loading skeletons, and pagination.
+- Added the shared create/edit form with predefined and custom categories, accessible field errors, pending-submit protection, and trimmed request values.
+- Added details and delete-confirmation dialogs, safe text rendering, peso and timezone-stable calendar-date formatters, success notifications, and inline or toast errors.
+- Added the Tailwind CSS 4 semantic color and radius tokens required by the generated Shadcn components.
+- Added deterministic component tests for loading, list states, filters, page reset, form modes, validation feedback, CRUD interactions, deletion outcomes, not-found behavior, and formatting.
 
 ## Phase 5 — React-to-Laravel Connection
 
-**Status: Not started**
+**Status: Finished**
 
-Implement the typed expense service and connect all list and CRUD interactions to `/api/v1/expenses`, including normalized errors, debounced search, page correction after deletion, and server-validation feedback.
+Added explicit expense, request, query, pagination, and validation-error types. The centralized expense service sends every request to `/api/v1/expenses`, serializes server-side filters and sorting, and normalizes network, validation, not-found, and unexpected errors. The page uses that service for all five CRUD actions, debounces title search, prevents invalid date-range requests, refreshes after writes, corrects the page after deletion, and retains entered form values when Laravel returns field errors. Service tests cover query serialization, successful pagination, validation errors, network failures, and `204` deletion.
 
 ## Phase 6 — Cleanup and Final Verification
 
-1.  **Status: Not started**
+**Status: Finished**
 
-Remove only the approved replaced entrypoints, welcome view, placeholder tests, and any resulting empty test directory. Run every backend and frontend quality gate and record each result as `PASS`, `FAIL`, or `NOT RUN`.
+Removed the replaced `resources/js/app.js` entry point, Laravel welcome view, and both default PHPUnit `ExampleTest` files. The complete backend suite now consists of the expense API tests. Empty directories are not tracked by Git.
+
+### Verification record
+
+Initial checks exposed missing generated-component dependencies and strict TypeScript issues. After those were corrected, a subsequent batch exposed a Sonner theme type issue and test-helper lint errors. The final lint issue was a timer helper returning a value from React's `act`. Each issue was corrected without changing the expense API.
+
+| Command | Final result | Notes |
+| --- | --- | --- |
+| `npm run typecheck` | PASS | Final rerun passed with strict TypeScript settings. Earlier runs failed on generated dependencies and optional-property/theme types. |
+| `npm run lint` | PASS | Final rerun passed. Earlier runs found generated-component type fallout and test-helper rules. |
+| `npm test` | PASS — 24 tests in 4 files | Service, formatter, form, and page behavior passed without a running server. |
+| `npm run build` | PASS | Production assets built successfully after the final CSS change. |
+| `composer test` | PASS — 52 tests, 214 assertions | Complete backend expense API suite passed after placeholder-test removal, using the configured in-memory SQLite test connection. |
+| `php vendor/bin/pint --dirty --format agent` | PASS | PHP formatting gate passed after cleanup. |
+| `git diff --check` | PASS | No whitespace errors were reported in the working diff. |
+
+Desktop and narrow-viewport screenshots show the running empty state and responsive filters. The screenshots exposed overly dark card borders; Shadcn's base `border-border` rule was added and the production build passed again. Recent browser logs show Vite connections and no reported JavaScript errors. The developer created a custom-category expense through the running UI, viewed it, edited its notes, and deleted it successfully. The PostgreSQL migration was previously verified in Phase 2; the PHPUnit API suite still runs on SQLite. The final staged Git diff check is part of the developer-run commit handoff.
