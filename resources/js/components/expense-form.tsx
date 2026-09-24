@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { isPredefinedCategory, predefinedCategories } from '@/lib/categories';
+import { getManilaCalendarDate } from '@/lib/formatters';
 import { ExpenseServiceError } from '@/services/expense-service';
 import type { Expense, ExpenseFieldErrors, ExpenseInput } from '@/types/expense';
 
@@ -71,7 +72,7 @@ export function ExpenseForm({ expense, onSubmit, onCancel }: ExpenseFormProps) {
     }
 
     return (
-        <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-col gap-5">
+        <form onSubmit={(event) => void handleSubmit(event)} className="flex min-w-0 flex-col gap-5 overflow-hidden">
             {formError && (
                 <p role="alert" className="text-destructive text-sm">
                     {formError}
@@ -90,8 +91,8 @@ export function ExpenseForm({ expense, onSubmit, onCancel }: ExpenseFormProps) {
                 />
                 <FieldError name="title" errors={errors} />
             </div>
-            <div className="grid gap-5 sm:grid-cols-2">
-                <div className="flex flex-col gap-2">
+            <div className="grid min-w-0 gap-5 sm:grid-cols-2">
+                <div className="flex min-w-0 flex-col gap-2">
                     <Label htmlFor="amount">Amount (₱)</Label>
                     <Input
                         id="amount"
@@ -108,11 +109,12 @@ export function ExpenseForm({ expense, onSubmit, onCancel }: ExpenseFormProps) {
                     />
                     <FieldError name="amount" errors={errors} />
                 </div>
-                <div className="flex flex-col gap-2">
+                <div className="flex min-w-0 flex-col gap-2">
                     <Label htmlFor="expense_date">Expense date</Label>
                     <Input
                         id="expense_date"
                         type="date"
+                        max={getManilaCalendarDate()}
                         value={expenseDate}
                         onChange={(event) => setExpenseDate(event.target.value)}
                         required
@@ -163,6 +165,8 @@ export function ExpenseForm({ expense, onSubmit, onCancel }: ExpenseFormProps) {
                 <Label htmlFor="notes">Notes (optional)</Label>
                 <Textarea
                     id="notes"
+                    className="h-32 max-h-56 resize-y"
+                    wrap="soft"
                     value={notes}
                     onChange={(event) => setNotes(event.target.value)}
                     maxLength={2000}

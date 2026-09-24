@@ -1,3 +1,5 @@
+import { EyeIcon, PencilIcon, Trash2Icon } from 'lucide-react';
+
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -22,11 +24,13 @@ function ExpenseActions({
     onDelete,
 }: Pick<ExpenseResultsProps, 'onView' | 'onEdit' | 'onDelete'> & { expense: Expense }) {
     return (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap justify-end gap-1">
             <Button size="sm" variant="ghost" onClick={() => onView(expense)} aria-label={`View ${expense.title}`}>
+                <EyeIcon aria-hidden="true" />
                 View
             </Button>
             <Button size="sm" variant="ghost" onClick={() => onEdit(expense)} aria-label={`Edit ${expense.title}`}>
+                <PencilIcon aria-hidden="true" />
                 Edit
             </Button>
             <Button
@@ -36,6 +40,7 @@ function ExpenseActions({
                 onClick={() => onDelete(expense)}
                 aria-label={`Delete ${expense.title}`}
             >
+                <Trash2Icon aria-hidden="true" />
                 Delete
             </Button>
         </div>
@@ -45,13 +50,46 @@ function ExpenseActions({
 export function ExpenseResults({ expenses, isLoading, hasFilters, onView, onEdit, onDelete }: ExpenseResultsProps) {
     if (isLoading) {
         return (
-            <Card aria-busy="true" aria-label="Loading expenses">
-                <CardContent className="flex flex-col gap-4 pt-6">
+            <div aria-busy="true" aria-label="Loading expenses">
+                <div className="grid gap-3 md:hidden">
                     {[1, 2, 3].map((index) => (
-                        <Skeleton key={index} className="h-16 w-full" />
+                        <Card key={index} className="bg-card py-5 shadow-sm">
+                            <CardContent className="flex flex-col gap-4">
+                                <div className="flex items-center justify-between gap-4">
+                                    <Skeleton className="h-5 w-2/5" />
+                                    <Skeleton className="h-5 w-1/4" />
+                                </div>
+                                <Skeleton className="h-4 w-1/3" />
+                                <Skeleton className="h-8 w-1/2" />
+                            </CardContent>
+                        </Card>
                     ))}
-                </CardContent>
-            </Card>
+                </div>
+                <Card className="hidden overflow-hidden border bg-card py-0 shadow-sm md:block">
+                    <Table>
+                        <TableHeader className="bg-muted/50">
+                            <TableRow className="hover:bg-transparent">
+                                <TableHead className="px-6">Title</TableHead>
+                                <TableHead className="px-6">Category</TableHead>
+                                <TableHead className="px-6">Date</TableHead>
+                                <TableHead className="px-6 text-right">Amount</TableHead>
+                                <TableHead className="px-6 text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {[1, 2, 3].map((index) => (
+                                <TableRow key={index}>
+                                    <TableCell className="px-6 py-4"><Skeleton className="h-4 w-32" /></TableCell>
+                                    <TableCell className="px-6 py-4"><Skeleton className="h-5 w-20" /></TableCell>
+                                    <TableCell className="px-6 py-4"><Skeleton className="h-4 w-24" /></TableCell>
+                                    <TableCell className="px-6 py-4"><Skeleton className="ml-auto h-4 w-24" /></TableCell>
+                                    <TableCell className="px-6 py-4"><Skeleton className="ml-auto h-8 w-40" /></TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </Card>
+            </div>
         );
     }
 
@@ -72,7 +110,7 @@ export function ExpenseResults({ expenses, isLoading, hasFilters, onView, onEdit
         <>
             <div className="grid gap-3 md:hidden">
                 {expenses.map((expense) => (
-                    <Card key={expense.id}>
+                    <Card key={expense.id} className="bg-card shadow-sm">
                         <CardContent className="flex flex-col gap-4 py-5">
                             <div className="flex items-start justify-between gap-4">
                                 <div className="flex flex-col gap-2">
@@ -89,29 +127,29 @@ export function ExpenseResults({ expenses, isLoading, hasFilters, onView, onEdit
                     </Card>
                 ))}
             </div>
-            <Card className="hidden md:block">
+            <Card className="hidden overflow-hidden border bg-card py-0 shadow-sm md:block">
                 <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Title</TableHead>
-                            <TableHead>Category</TableHead>
-                            <TableHead>Date</TableHead>
-                            <TableHead className="text-right">Amount</TableHead>
-                            <TableHead>Actions</TableHead>
+                    <TableHeader className="bg-muted/50">
+                        <TableRow className="hover:bg-transparent">
+                            <TableHead className="px-6">Title</TableHead>
+                            <TableHead className="px-6">Category</TableHead>
+                            <TableHead className="px-6">Date</TableHead>
+                            <TableHead className="px-6 text-right">Amount</TableHead>
+                            <TableHead className="px-6 text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {expenses.map((expense) => (
                             <TableRow key={expense.id}>
-                                <TableCell className="font-medium">{expense.title}</TableCell>
-                                <TableCell>
+                                <TableCell className="max-w-72 px-6 py-4 font-semibold whitespace-normal wrap-anywhere">{expense.title}</TableCell>
+                                <TableCell className="px-6 py-4">
                                     <Badge variant="secondary">{expense.category}</Badge>
                                 </TableCell>
-                                <TableCell>{formatExpenseDate(expense.expense_date)}</TableCell>
-                                <TableCell className="text-right font-medium tabular-nums">
+                                <TableCell className="px-6 py-4">{formatExpenseDate(expense.expense_date)}</TableCell>
+                                <TableCell className="px-6 py-4 text-right font-semibold tabular-nums">
                                     {formatPeso(expense.amount)}
                                 </TableCell>
-                                <TableCell>
+                                <TableCell className="px-6 py-4">
                                     <ExpenseActions expense={expense} onView={onView} onEdit={onEdit} onDelete={onDelete} />
                                 </TableCell>
                             </TableRow>

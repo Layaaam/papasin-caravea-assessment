@@ -184,15 +184,17 @@ export function ExpensePage() {
     }
 
     return (
-        <main className="bg-background text-foreground min-h-svh">
-            <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
-                <header className="flex flex-wrap items-end justify-between gap-4">
+        <main className="bg-background text-foreground min-h-svh overflow-x-hidden">
+            <section className="bg-violet-700 text-white">
+                <header className="mx-auto flex max-w-7xl flex-wrap items-end justify-between gap-6 px-4 pt-12 pb-28 sm:px-6 lg:px-8 lg:pt-16 lg:pb-32">
                     <div className="flex flex-col gap-2">
-                        <p className="text-muted-foreground text-sm font-medium tracking-widest uppercase">Personal finance</p>
-                        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Expenses</h1>
-                        <p className="text-muted-foreground">Review and manage your spending in one place.</p>
+                        <p className="text-sm font-semibold tracking-[0.2em] text-violet-100 uppercase">Personal finance</p>
+                        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Expenses</h1>
+                        <p className="max-w-xl text-base text-violet-100 sm:text-lg">Review and manage your spending in one place.</p>
                     </div>
                     <Button
+                        size="lg"
+                        className="bg-white text-violet-700 shadow-lg shadow-violet-950/20 hover:bg-violet-50"
                         onClick={() => {
                             setEditingExpense(null);
                             setIsFormOpen(true);
@@ -201,7 +203,9 @@ export function ExpensePage() {
                         Add expense
                     </Button>
                 </header>
+            </section>
 
+            <div className="relative mx-auto -mt-20 flex max-w-7xl flex-col gap-8 px-4 pb-12 sm:px-6 lg:px-8 lg:pb-16">
                 <ExpenseFilters
                     query={query}
                     searchDraft={searchDraft}
@@ -241,7 +245,7 @@ export function ExpensePage() {
             </div>
 
             <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-                <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-xl">
+                <DialogContent className="max-h-[90svh] min-w-0 overflow-hidden sm:max-w-xl">
                     <DialogHeader>
                         <DialogTitle>{editingExpense ? 'Edit expense' : 'Add expense'}</DialogTitle>
                         <DialogDescription>
@@ -260,10 +264,10 @@ export function ExpensePage() {
             </Dialog>
 
             <Dialog open={detailsId !== null} onOpenChange={(open) => { if (!open) setDetailsId(null); }}>
-                <DialogContent className="sm:max-w-lg">
-                    <DialogHeader>
-                        <DialogTitle>{detailsTitle}</DialogTitle>
-                        <DialogDescription>Expense details</DialogDescription>
+                <DialogContent className="max-h-[90svh] min-w-0 gap-0 overflow-x-hidden overflow-y-auto p-0 sm:max-w-lg">
+                    <DialogHeader className="border-b px-6 py-5 pr-12">
+                        <DialogTitle className="text-xl leading-snug wrap-anywhere">{detailsTitle}</DialogTitle>
+                        <DialogDescription>Recorded expense information</DialogDescription>
                     </DialogHeader>
                     <ExpenseDetails expense={detailsExpense} isLoading={isDetailsLoading} error={detailsError} />
                 </DialogContent>

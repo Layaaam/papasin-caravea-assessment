@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ExpenseForm } from '@/components/expense-form';
 import { ExpenseServiceError } from '@/services/expense-service';
@@ -16,7 +16,29 @@ const customExpense: Expense = {
     updated_at: '2026-09-24T08:00:00.000000Z',
 };
 
+afterEach(() => {
+    vi.useRealTimers();
+});
+
 describe('ExpenseForm', () => {
+    it('prevents selecting a date after the current Manila calendar date', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-09-24T16:30:00Z'));
+
+        render(<ExpenseForm onSubmit={vi.fn()} onCancel={vi.fn()} />);
+
+        expect(screen.getByLabelText('Expense date')).toHaveAttribute('max', '2026-09-25');
+    });
+
+    it('contains long notes in a vertically scrollable wrapped textarea', () => {
+        render(<ExpenseForm onSubmit={vi.fn()} onCancel={vi.fn()} />);
+
+        const notes = screen.getByLabelText('Notes (optional)');
+
+        expect(notes).toHaveAttribute('wrap', 'soft');
+        expect(notes).toHaveClass('overflow-x-hidden', 'overflow-y-auto', 'wrap-anywhere', 'max-h-56');
+    });
+
     it('reveals and requires a custom category when Other is selected', () => {
         render(<ExpenseForm onSubmit={vi.fn()} onCancel={vi.fn()} />);
 

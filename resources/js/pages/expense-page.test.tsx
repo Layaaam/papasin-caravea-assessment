@@ -47,11 +47,33 @@ describe('ExpensePage', () => {
         render(<ExpensePage />);
 
         expect(screen.getByLabelText('Loading expenses')).toHaveAttribute('aria-busy', 'true');
+        expect(screen.getByRole('columnheader', { name: 'Title' })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: 'Actions' })).toBeInTheDocument();
         await act(async () => {
             finishLoading?.(listResponse([]));
             await Promise.resolve();
         });
         expect(screen.getByRole('heading', { name: 'No expenses yet' })).toBeInTheDocument();
+    });
+
+    it('keeps the table header visible while refreshed rows are loading', async () => {
+        let finishRefresh: ((value: ExpenseListResponse) => void) | undefined;
+        vi.spyOn(expenseService, 'list')
+            .mockResolvedValueOnce(listResponse([expense]))
+            .mockImplementationOnce(() => new Promise((resolve) => { finishRefresh = resolve; }));
+        render(<ExpensePage />);
+        await screen.findAllByText('Team lunch');
+
+        fireEvent.change(screen.getByLabelText('Category'), { target: { value: 'Shopping' } });
+
+        expect(screen.getByLabelText('Loading expenses')).toHaveAttribute('aria-busy', 'true');
+        expect(screen.getByRole('columnheader', { name: 'Title' })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: 'Actions' })).toBeInTheDocument();
+
+        await act(async () => {
+            finishRefresh?.(listResponse([]));
+            await Promise.resolve();
+        });
     });
 
     it('renders a populated list and a distinct no-results state after filtering', async () => {
@@ -62,6 +84,9 @@ describe('ExpensePage', () => {
         render(<ExpensePage />);
 
         expect((await screen.findAllByText('Team lunch')).length).toBeGreaterThan(0);
+        expect(screen.getAllByRole('button', { name: 'View Team lunch' })[0]?.querySelector('svg')).toBeInTheDocument();
+        expect(screen.getAllByRole('button', { name: 'Edit Team lunch' })[0]?.querySelector('svg')).toBeInTheDocument();
+        expect(screen.getAllByRole('button', { name: 'Delete Team lunch' })[0]?.querySelector('svg')).toBeInTheDocument();
         expect(screen.getAllByText('₱1,250.00').length).toBeGreaterThan(0);
 
         fireEvent.change(screen.getByLabelText('Category'), { target: { value: 'Shopping' } });
