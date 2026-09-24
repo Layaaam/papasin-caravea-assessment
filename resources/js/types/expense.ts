@@ -50,7 +50,6 @@ export interface ExpensePaginationMeta {
     per_page: number;
     to: number | null;
     total: number;
-    categories: string[];
 }
 
 export interface ExpenseListResponse {
@@ -64,4 +63,10 @@ export interface ExpenseListResponse {
     meta: ExpensePaginationMeta;
 }
 
-export type ExpenseFieldErrors = Partial<Record<keyof ExpenseInput | 'date_from' | 'date_to', string[]>>;
+export type ExpenseFieldErrors = Partial<Record<keyof ExpenseInput | 'date_from' | 'date_to', string>>;
+
+export interface ExpenseIndexPageProps {
+    expenses: ExpenseListResponse;
+    filters: ExpenseQuery;
+    categories: string[];
+}
